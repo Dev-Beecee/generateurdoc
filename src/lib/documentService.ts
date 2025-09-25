@@ -1,6 +1,5 @@
-import { Document, Packer, Paragraph, TextRun } from 'docx';
 import { saveAs } from 'file-saver';
-const JSZip = require('jszip');
+import JSZip from 'jszip';
 import { DocumentField } from '../types/document';
 
 export class DocumentService {
@@ -41,7 +40,7 @@ export class DocumentService {
    */
   static async generateDocx(
     templatePath: string,
-    data: Record<string, any>,
+    data: Record<string, unknown>,
     outputFileName: string
   ): Promise<void> {
     try {
@@ -73,7 +72,7 @@ export class DocumentService {
   }
 
   
-  private static replaceVariablesInXml(xml: string, data: Record<string, any>): string {
+  private static replaceVariablesInXml(xml: string, data: Record<string, unknown>): string {
     let result = xml;
     
     Object.keys(data).forEach(key => {

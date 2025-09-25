@@ -21,7 +21,7 @@ export default function GeneratorPage() {
         setMentionsFields(mentions);
         setPolitiqueFields(politique);
       } catch (error) {
-        console.error('Erreur lors de l\'extraction des champs:', error);
+        console.error('Erreur lors de l&apos;extraction des champs:', error);
       } finally {
         setLoading(false);
       }
@@ -46,7 +46,7 @@ export default function GeneratorPage() {
       <div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8">
         <Link href="/" className="inline-flex items-center text-blue-600 hover:text-blue-800 mb-8">
           <ArrowLeft className="w-5 h-5 mr-2" />
-          Retour à l'accueil
+          Retour à l&apos;accueil
         </Link>
 
         <h1 className="text-3xl font-bold text-gray-900 mb-8">Générateur de Documents</h1>
