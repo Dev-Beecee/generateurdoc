@@ -56,10 +56,8 @@ export class DocumentService {
         throw new Error('Impossible de lire le contenu du document');
       }
       
-      // Traitement spécial pour l'hébergeur
-      const processedData = this.processHebergeurData(data);
-      
-      const updatedXml = this.replaceVariablesInXml(documentXml, processedData);
+      // Remplacer les variables dans le XML
+      const updatedXml = this.replaceVariablesInXml(documentXml, data);
       docxZip.file('word/document.xml', updatedXml);
       
       const newDocxBuffer = await docxZip.generateAsync({ type: 'arraybuffer' });
@@ -75,30 +73,21 @@ export class DocumentService {
     }
   }
 
-  /**
-   * Traite les données pour remplacer le nom de l'hébergeur par son adresse
-   */
-  private static processHebergeurData(data: Record<string, unknown>): Record<string, unknown> {
-    const processedData = { ...data };
-    
-    // Chercher les champs hébergeur et les remplacer par l'adresse
-    Object.keys(processedData).forEach(key => {
-      if (key.toLowerCase().includes('hebergeur')) {
-        const hebergeurNom = processedData[key] as string;
-        const hebergeur = getHebergeurByNom(hebergeurNom);
-        
-        if (hebergeur && hebergeur.adresse) {
-          processedData[key] = hebergeur.adresse;
-        }
-      }
-    });
-    
-    return processedData;
-  }
   
   private static replaceVariablesInXml(xml: string, data: Record<string, unknown>): string {
     let result = xml;
     
+    // D'abord, identifier l'hébergeur sélectionné
+    let selectedHebergeur: string | null = null;
+    Object.keys(data).forEach(key => {
+      if (key.toLowerCase().includes('hebergeur') && !key.toLowerCase().includes('adresse') && !key.toLowerCase().includes('site')) {
+        selectedHebergeur = data[key] as string;
+      }
+    });
+
+    const hebergeurInfo = selectedHebergeur ? getHebergeurByNom(selectedHebergeur) : null;
+    
+    // Remplacer les variables standard
     Object.keys(data).forEach(key => {
       const value = data[key];
       if (typeof value === 'string') {
@@ -114,6 +103,43 @@ export class DocumentService {
         result = result.replace(regex, boolValue);
       }
     });
+
+    // Remplacer les variables d'hébergeur spéciales (même si elles ne sont pas dans le formulaire)
+    if (hebergeurInfo) {
+      // Variables possibles pour l'adresse de l'hébergeur
+      const adresseVariants = [
+        'adressehebergeur', 'hebergeuradresse', 'adresse_hebergeur', 
+        'hebergeur_adresse', 'adresseHebergeur', 'hebergeurAdresse',
+        'ADRESSEHEBERGEUR'
+      ];
+      
+      adresseVariants.forEach(variant => {
+        const regex = new RegExp(`\\{${variant}\\}`, 'gi');
+        result = result.replace(regex, hebergeurInfo.adresse);
+      });
+
+      // Variables possibles pour le site de l'hébergeur
+      const siteVariants = [
+        'sitehebergeur', 'hebergeursite', 'site_hebergeur',
+        'hebergeur_site', 'siteHebergeur', 'hebergeurSite'
+      ];
+      
+      siteVariants.forEach(variant => {
+        const regex = new RegExp(`\\{${variant}\\}`, 'gi');
+        result = result.replace(regex, hebergeurInfo.site);
+      });
+
+      // Variables possibles pour le nom de l'hébergeur  
+      const nomVariants = [
+        'nomhebergeur', 'hebergeurnom', 'nom_hebergeur',
+        'hebergeur_nom', 'nomHebergeur', 'hebergeurNom'
+      ];
+      
+      nomVariants.forEach(variant => {
+        const regex = new RegExp(`\\{${variant}\\}`, 'gi');
+        result = result.replace(regex, hebergeurInfo.nom);
+      });
+    }
     
     return result;
   }
@@ -124,9 +150,24 @@ export class DocumentService {
   static generateFieldsFromVariables(variables: string[]): DocumentField[] {
     return variables
       .filter(variable => {
-        // Masquer les champs d'adresse d'hébergeur car ils sont gérés automatiquement
+        // Masquer tous les champs d'hébergeur sauf le champ de sélection principal
         const lowerVar = variable.toLowerCase();
-        return !(lowerVar.includes('hebergeur') && lowerVar.includes('adresse'));
+        
+        // Garder seulement le champ principal "hebergeur" 
+        if (lowerVar === 'hebergeur') {
+          return true;
+        }
+        
+        // Masquer toutes les autres variantes d'hébergeur (adresse, site, nom, etc.)
+        const hebergeurVariants = [
+          'adressehebergeur', 'hebergeuradresse', 'adresse_hebergeur', 'hebergeur_adresse',
+          'adresseHebergeur', 'hebergeurAdresse', 'sitehebergeur', 'hebergeursite', 
+          'site_hebergeur', 'hebergeur_site', 'siteHebergeur', 'hebergeurSite',
+          'nomhebergeur', 'hebergeurnom', 'nom_hebergeur', 'hebergeur_nom',
+          'nomHebergeur', 'hebergeurNom'
+        ];
+        
+        return !hebergeurVariants.includes(lowerVar);
       })
       .map(variable => {
       const field: DocumentField = {
@@ -142,8 +183,8 @@ export class DocumentService {
         field.options = ['SARL', 'SAS', 'EURL', 'Auto-entrepreneur', 'Association', 'Autre'];
       }
       
-      // Configuration spéciale pour le champ hébergeur
-      if (variable.toLowerCase().includes('hebergeur') && !variable.toLowerCase().includes('adresse')) {
+      // Configuration spéciale pour le champ hébergeur principal
+      if (variable.toLowerCase() === 'hebergeur') {
         field.type = 'select';
         field.options = Object.values(HEBERGEURS).map(h => h.nom);
         field.placeholder = 'Sélectionnez votre hébergeur';
