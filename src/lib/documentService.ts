@@ -1,6 +1,7 @@
 import { saveAs } from 'file-saver';
 import JSZip from 'jszip';
 import { DocumentField } from '../types/document';
+import { HEBERGEURS, getHebergeurByNom, HebergeurInfo } from '../config/hebergeurs';
 
 export class DocumentService {
   /**
@@ -55,7 +56,10 @@ export class DocumentService {
         throw new Error('Impossible de lire le contenu du document');
       }
       
-      const updatedXml = this.replaceVariablesInXml(documentXml, data);
+      // Traitement spécial pour l'hébergeur
+      const processedData = this.processHebergeurData(data);
+      
+      const updatedXml = this.replaceVariablesInXml(documentXml, processedData);
       docxZip.file('word/document.xml', updatedXml);
       
       const newDocxBuffer = await docxZip.generateAsync({ type: 'arraybuffer' });
@@ -71,6 +75,26 @@ export class DocumentService {
     }
   }
 
+  /**
+   * Traite les données pour remplacer le nom de l'hébergeur par son adresse
+   */
+  private static processHebergeurData(data: Record<string, unknown>): Record<string, unknown> {
+    const processedData = { ...data };
+    
+    // Chercher les champs hébergeur et les remplacer par l'adresse
+    Object.keys(processedData).forEach(key => {
+      if (key.toLowerCase().includes('hebergeur')) {
+        const hebergeurNom = processedData[key] as string;
+        const hebergeur = getHebergeurByNom(hebergeurNom);
+        
+        if (hebergeur && hebergeur.adresse) {
+          processedData[key] = hebergeur.adresse;
+        }
+      }
+    });
+    
+    return processedData;
+  }
   
   private static replaceVariablesInXml(xml: string, data: Record<string, unknown>): string {
     let result = xml;
@@ -98,7 +122,13 @@ export class DocumentService {
    * Génère automatiquement des champs de formulaire à partir des variables détectées
    */
   static generateFieldsFromVariables(variables: string[]): DocumentField[] {
-    return variables.map(variable => {
+    return variables
+      .filter(variable => {
+        // Masquer les champs d'adresse d'hébergeur car ils sont gérés automatiquement
+        const lowerVar = variable.toLowerCase();
+        return !(lowerVar.includes('hebergeur') && lowerVar.includes('adresse'));
+      })
+      .map(variable => {
       const field: DocumentField = {
         name: variable,
         label: this.formatFieldLabel(variable),
@@ -112,8 +142,21 @@ export class DocumentService {
         field.options = ['SARL', 'SAS', 'EURL', 'Auto-entrepreneur', 'Association', 'Autre'];
       }
       
+      // Configuration spéciale pour le champ hébergeur
+      if (variable.toLowerCase().includes('hebergeur') && !variable.toLowerCase().includes('adresse')) {
+        field.type = 'select';
+        field.options = Object.values(HEBERGEURS).map(h => h.nom);
+        field.placeholder = 'Sélectionnez votre hébergeur';
+        field.label = 'Hébergeur';
+      }
+      
       return field;
     });
+  }
+
+  // Fonction statique pour obtenir les informations d'un hébergeur par nom
+  static getHebergeurByNom(nom: string): HebergeurInfo | null {
+    return getHebergeurByNom(nom);
   }
   
   private static formatFieldLabel(variable: string): string {

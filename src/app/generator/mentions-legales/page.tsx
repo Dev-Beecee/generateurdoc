@@ -11,8 +11,18 @@ export default function MentionsLegalesGenerator() {
   const [fields, setFields] = useState<DocumentField[]>([]);
   const [isGenerating, setIsGenerating] = useState(false);
   const [loading, setLoading] = useState(true);
+  const [selectedHebergeur, setSelectedHebergeur] = useState<string>('');
   
-  const { register, handleSubmit, formState: { errors } } = useForm<FormData>();
+  const { register, handleSubmit, formState: { errors }, watch } = useForm<FormData>();
+
+  // Surveiller les changements du champ hébergeur
+  const watchedHebergeur = watch('hebergeur');
+
+  useEffect(() => {
+    if (watchedHebergeur) {
+      setSelectedHebergeur(watchedHebergeur as string);
+    }
+  }, [watchedHebergeur]);
 
   useEffect(() => {
     const loadFields = async () => {
@@ -32,7 +42,8 @@ export default function MentionsLegalesGenerator() {
           { name: 'email', label: 'Email', type: 'email', required: true },
           { name: 'siteWeb', label: 'Site web', type: 'text' },
           { name: 'siret', label: 'SIRET', type: 'text', required: true },
-          { name: 'dirigeant', label: 'Dirigeant', type: 'text', required: true }
+          { name: 'dirigeant', label: 'Dirigeant', type: 'text', required: true },
+          { name: 'hebergeur', label: 'Hébergeur', type: 'select', options: ['OVH', 'PlanetHoster', 'IONOS', 'Hostinger', 'Autre'] }
         ]);
       } finally {
         setLoading(false);
@@ -122,6 +133,8 @@ export default function MentionsLegalesGenerator() {
     );
   }
 
+  const hebergeurInfo = selectedHebergeur ? DocumentService.getHebergeurByNom(selectedHebergeur) : null;
+
   return (
     <div className="min-h-screen bg-gray-50 py-12">
       <div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8">
@@ -164,6 +177,26 @@ export default function MentionsLegalesGenerator() {
                 </div>
               ))}
             </div>
+
+            {/* Affichage des informations de l'hébergeur sélectionné */}
+            {hebergeurInfo && hebergeurInfo.adresse && (
+              <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
+                <h3 className="text-sm font-medium text-blue-900 mb-2">
+                  Informations de l&apos;hébergeur sélectionné :
+                </h3>
+                <p className="text-sm text-blue-800">
+                  <strong>{hebergeurInfo.nom}</strong><br />
+                  {hebergeurInfo.adresse}
+                </p>
+                {hebergeurInfo.site && (
+                  <p className="text-sm text-blue-600 mt-1">
+                    Site web : <a href={hebergeurInfo.site} target="_blank" rel="noopener noreferrer" className="underline">
+                      {hebergeurInfo.site}
+                    </a>
+                  </p>
+                )}
+              </div>
+            )}
 
             <div className="pt-6 border-t border-gray-200">
               <button
